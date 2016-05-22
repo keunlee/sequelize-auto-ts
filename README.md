@@ -64,6 +64,7 @@ Current supported database dialects:
 
 * MySQL - `mysql`
 * PostGresql - `postgres`
+* SQlite - `sqlite`
 
 run the following command:
 
@@ -140,6 +141,23 @@ CREATE TABLE Users (
 	FOREIGN KEY (RoleID) REFERENCES Roles(RoleID)
 );
 
+```
+
+Sqlite
+
+```SQL
+CREATE TABLE `Roles` (
+	`RoleID`	INTEGER PRIMARY KEY AUTOINCREMENT,
+	`RoleName`	TEXT NOT NULL
+);
+
+CREATE TABLE `Users` (
+	`UserID`	INTEGER PRIMARY KEY AUTOINCREMENT,
+	`RoleID`	INTEGER NOT NULL,
+	`UserName`	TEXT NOT NULL,
+
+	FOREIGN KEY (RoleID) REFERENCES Roles(RoleID)
+);
 ```
 
 # Generated Interfaces

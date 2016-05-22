@@ -34,7 +34,8 @@ function processFromCommandLines() {
         password : args[2],
         targetDirectory : args[3],
         options : {
-            dialect : args[4]
+            dialect : args[4],
+            storage : args[5]
         }
     };
     if (!args.length || (!settingsJSON && args.length < 5)) {
@@ -88,7 +89,8 @@ function processFromPrompt() {
             username : {description : "Username", required : true},
             password : {description : "Password", required : false, hidden : true},
             targetDirectory : {description : "Target directory", required : true},
-            dialect : {description : "Database dialect ( mysql, postgres, mariadb, mssql, sqlite)", required : true}
+            dialect : {description : "Database dialect ( mysql, postgres, mariadb, mssql, sqlite)", required : true},
+            storage : {description : "Storage file (sqlite only)", required : true}
         }
     };
 
@@ -96,7 +98,8 @@ function processFromPrompt() {
 
     prompt.get(schema, function (err, result) {
         result.options = {
-            dialect : result.dialect
+            dialect : result.dialect,
+            storage : result.storage
         };
         generate(<generator.GenerateOptions>result);
     })
@@ -107,7 +110,8 @@ function generate(options : generator.GenerateOptions) : void {
     console.log("Username: " + options.username);
     console.log("Password: <hidden>");
     console.log("Target  : " + options.targetDirectory);
-    console.log("Database Dialect: " + options.options.dialect);
+    console.log("Database Dialect: " + options.options.dialect);    
+    console.log("Storage : " + options.options.storage);
     console.log("");
 
     if (!fs.existsSync(options.targetDirectory)) {
@@ -139,6 +143,7 @@ function showHelp() : void {
     console.log("            password        - password for user");
     console.log("            targetDirectory - The directory where generated files should be placed");
     console.log("            dialect         - database dialect ( mysql, postgres, mariadb, mssql, sqlite)");
+    console.log("            storage         - storage file (sqlite only)");
     console.log("");
     console.log("Option 2: Interactive");
     console.log("");

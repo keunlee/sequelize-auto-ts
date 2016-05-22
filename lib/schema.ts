@@ -254,7 +254,7 @@ export class Field {
     public targetIdFieldType : string; // if this is a prefixed foreign key, then the name of the non-prefixed key is here
 
     constructor(public fieldName : string, public fieldType : string, public columnType : string, public columnDefault : string, public isNullableString : string, public table : Table, public isReference : boolean = false, public isCalculated : boolean = false) {
-
+       ;
     }
 
     isNullable() : boolean {
@@ -279,7 +279,7 @@ export class Field {
 
     translatedFieldType() : string {
         var fieldType : string = this.fieldType;
-        var translated : string = Schema.fieldTypeTranslations[fieldType];
+        var translated : string = Schema.fieldTypeTranslations[fieldType];;
 
         if (translated == undefined) {
             var fieldTypeLength : number = fieldType.length;
@@ -510,11 +510,67 @@ export function read(database : string, username : string, password : string, op
         default:
             break;
     }
+    
+    if(options.dialect='sqlite') {
+        sql =
+            "select name " +
+            "from sqlite_master " +
+            "where type='table' and name != 'sqlite_sequence' " +
+            "order by name";  
+        sequelize
+            .query(sql)
+            .then((rows)=>processTablesSQLite(undefined, rows))
+            .catch((err)=>processTablesSQLite(err, null));            
+    } else {
+        sequelize
+            .query(sql)
+            .then((rows)=>processTablesAndColumns(undefined, rows[0]))
+            .catch((err)=>processTablesAndColumns(err, null));
+    }
 
-    sequelize
-        .query(sql)
-        .then((rows)=>processTablesAndColumns(undefined, rows[0]))
-        .catch((err)=>processTablesAndColumns(err, null));
+    function processTablesSQLite(err : Error, tables : Array<string>) : void {
+        if (err) {
+            callback(err, null);
+            return;
+        }
+        
+        if (tables == null) {
+            var err : Error = new Error("No schema info returned for database.");
+            callback(err, null);
+            return;
+        }
+        
+        var rows = <Array<ColumnDefinitionRow>> new Array<any>();
+        var index : number = 0;
+        
+        (function iterate() {
+            var table : any = tables[index];
+            var sql = 'PRAGMA table_info(' + table + ')';
+            sequelize
+                .query(sql)
+                .then((pragma)=>{
+                    index++;
+                    for (var k : number = 0; k < pragma[0].length; k++) {
+                        var column : any = pragma[0][k];
+                        var row = <ColumnDefinitionRow>{};
+                        row.table_name = table;
+                        row.column_name = column.name;
+                        row.column_type = column.type.toLowerCase();
+                        row.data_type = column.type.toLowerCase();
+                        row.column_default = column.dflt_value;
+                        row.is_nullable = (column.notnull =='1') ? '0' : '1';
+                        row.ordinal_position = column.cid;
+                        rows.push(row);
+                    }
+                    
+                    if(index < tables.length) {
+                        iterate();
+                    } else {   
+                        readCustomFields(rows);
+                    }
+                });            
+        })();      
+    }
 
     function processTablesAndColumns(err : Error, rows : Array<ColumnDefinitionRow>) : void {
         if (err) {
@@ -622,7 +678,7 @@ export function read(database : string, username : string, password : string, op
 
         readReferences();
     }
-
+    
     function readReferences() : void {
 
         var sql : string =
@@ -655,10 +711,55 @@ export function read(database : string, username : string, password : string, op
                 break;
         }
 
-        sequelize
-            .query(sql)
-            .then((rows)=>processReferences(undefined, rows[0]))
-            .catch((err)=>processReferences(err, null));
+        if(options.dialect == 'sqlite') {
+            sql =
+                "select name " +
+                "from sqlite_master " +
+                "where type='table' and name != 'sqlite_sequence' " +
+                "order by name";     
+            sequelize
+                .query(sql)
+                .then((rows)=>readReferencesSQLite(undefined, rows))
+                .catch((err)=>readReferencesSQLite(err, null)); 
+        } else {
+            sequelize
+                .query(sql)
+                .then((rows)=>processReferences(undefined, rows[0]))
+                .catch((err)=>processReferences(err, null));
+        }            
+    }
+    
+    function readReferencesSQLite(err : Error, tables : Array<string>) : void {
+        if (err) {
+            callback(err, null);
+            return;
+        }
+        
+        var index : number = 0;
+        var rows = <Array<ReferenceDefinitionRow>> new Array<any>();
+        
+        (function iterate() {
+            var table : any = tables[index];
+            var sql = 'PRAGMA foreign_key_list(' + table + ')';
+            sequelize
+                .query(sql)
+                .then((pragma)=>{                    
+                    index++;
+                    if(pragma.length > 0) {
+                        var row = <ReferenceDefinitionRow>{};
+                        row.table_name = table;
+                        row.column_name = pragma[0].from;
+                        row.referenced_table_name = pragma[0].table;
+                        row.referenced_column_name = pragma[0].to;
+                        rows.push(row);
+                    }
+                    if(index < tables.length) {
+                        iterate();
+                    } else {   
+                        processReferences(undefined, rows);
+                    }
+                });            
+        })();   
     }
 
     function processReferences(err : Error, rows : Array<ReferenceDefinitionRow>) : void {
@@ -683,7 +784,7 @@ export function read(database : string, username : string, password : string, op
         switch (options.dialect) {
             case 'postgres' :
                 callback(null, schema);
-                break;
+                break;   
             case 'mariadb' :
             case 'mysql' :
             default:
@@ -902,9 +1003,9 @@ export function read(database : string, username : string, password : string, op
 
             switch (options.dialect) {
                 case 'mariadb' :
-                case "mysql" :
+                case 'mysql' :
                     break;
-                case "postgres" :
+                case 'postgres' :
                     otherTableName = otherTableName.toLowerCase();
                     break;
                 default:
